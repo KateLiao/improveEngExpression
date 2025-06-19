@@ -446,6 +446,115 @@
             margin: 10px 0;
         }
 
+        /* Markdown内容样式 */
+        .response-content h1, .response-content h2, .response-content h3 {
+            color: #2c3e50;
+            margin: 1em 0 0.5em 0;
+            font-weight: 600;
+        }
+
+        .response-content h1 {
+            font-size: 1.5rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.3rem;
+        }
+
+        .response-content h2 {
+            font-size: 1.3rem;
+        }
+
+        .response-content h3 {
+            font-size: 1.1rem;
+        }
+
+        .response-content p {
+            margin: 0.8em 0;
+            line-height: 1.6;
+        }
+
+        .response-content strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .response-content em {
+            color: #667eea;
+            font-style: italic;
+        }
+
+        .response-content code {
+            background: #f8f9fa;
+            color: #e83e8c;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        .response-content pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .response-content pre code {
+            background: none;
+            color: #495057;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .response-content ul, .response-content ol {
+            margin: 0.8em 0;
+            padding-left: 1.5em;
+        }
+
+        .response-content li {
+            margin: 0.3em 0;
+            line-height: 1.5;
+        }
+
+        .response-content blockquote {
+            border-left: 4px solid #667eea;
+            margin: 1em 0;
+            padding: 0.5em 0 0.5em 1em;
+            background: #f8f9fa;
+            border-radius: 0 5px 5px 0;
+            font-style: italic;
+            color: #6c757d;
+        }
+
+        .response-content a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .response-content a:hover {
+            border-bottom-color: #667eea;
+        }
+
+        .response-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+
+        .response-content th, .response-content td {
+            border: 1px solid #dee2e6;
+            padding: 0.5em;
+            text-align: left;
+        }
+
+        .response-content th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
         @media (max-width: 768px) {
             .sidebar {
                 width: 60px;
@@ -570,6 +679,13 @@
         </div>
     </div>
 
+    <!-- 引入streaming-markdown库 -->
+    <script type="module">
+        // 导入streaming-markdown
+        import * as smd from "https://cdn.jsdelivr.net/npm/streaming-markdown/smd.min.js"
+        // 将其挂载到全局window对象上，以便app.js可以使用
+        window.smd = smd;
+    </script>
     <script src="app.js"></script>
 </body>
 </html> 

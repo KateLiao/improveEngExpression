@@ -4,6 +4,7 @@ class EnglishChatApp {
         this.config = null;
         this.chatHistory = [];
         this.currentMessageId = 0;
+        this.markdownParsers = new Map(); // 用于存储每个消息的markdown解析器
         this.init();
     }
 
@@ -375,6 +376,15 @@ Important Rules:
             typingIndicator.style.display = 'none';
             responseElement.style.display = 'block';
 
+            // 等待streaming-markdown库加载
+            await this.waitForStreamingMarkdown();
+
+            // 创建markdown解析器
+            const parserId = `${agentType}-${messageId}`;
+            const renderer = window.smd.default_renderer(responseElement);
+            const parser = window.smd.parser(renderer);
+            this.markdownParsers.set(parserId, parser);
+
             // 处理流式响应
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -403,7 +413,8 @@ Important Rules:
                             }
 
                             if (content) {
-                                responseElement.textContent += content;
+                                // 使用streaming-markdown进行流式渲染
+                                window.smd.parser_write(parser, content);
                                 this.scrollToBottom();
                             }
                         } catch (e) {
@@ -413,10 +424,15 @@ Important Rules:
                 }
             }
 
+            // 结束流式解析
+            window.smd.parser_end(parser);
+            // 清理解析器
+            this.markdownParsers.delete(parserId);
+
             // 如果没有收到流式数据，尝试非流式调用
             if (!responseElement.textContent.trim()) {
                 const fallbackContent = await this.callAgentFallback(prompt, userInput, agentType);
-                responseElement.textContent = fallbackContent;
+                await this.renderMarkdownContent(responseElement, fallbackContent, agentType, messageId);
             }
 
         } catch (error) {
@@ -429,11 +445,43 @@ Important Rules:
             // 尝试非流式调用作为备用方案
             try {
                 const fallbackContent = await this.callAgentFallback(prompt, userInput, agentType);
-                responseElement.textContent = fallbackContent;
+                await this.renderMarkdownContent(responseElement, fallbackContent, agentType, messageId);
             } catch (fallbackError) {
                 responseElement.textContent = `❌ ${agentType === 'agent1' ? '对话助手' : '纠错助手'}响应失败`;
             }
         }
+    }
+
+    // 等待streaming-markdown库加载
+    async waitForStreamingMarkdown() {
+        let retries = 0;
+        const maxRetries = 50; // 最多等待5秒
+        
+        while (!window.smd && retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            retries++;
+        }
+        
+        if (!window.smd) {
+            throw new Error('Streaming-markdown库加载失败');
+        }
+    }
+
+    // 渲染markdown内容的辅助函数
+    async renderMarkdownContent(element, content, agentType, messageId) {
+        await this.waitForStreamingMarkdown();
+        
+        // 清空元素内容
+        element.innerHTML = '';
+        
+        // 创建markdown解析器
+        const parserId = `${agentType}-${messageId}`;
+        const renderer = window.smd.default_renderer(element);
+        const parser = window.smd.parser(renderer);
+        
+        // 一次性写入所有内容
+        window.smd.parser_write(parser, content);
+        window.smd.parser_end(parser);
     }
 
     // 非流式调用备用方案
@@ -490,7 +538,7 @@ Important Rules:
     }
 
     // 显示聊天历史
-    displayChatHistory() {
+    async displayChatHistory() {
         const chatMessages = document.getElementById('chatMessages');
         if (!chatMessages || this.chatHistory.length === 0) return;
 
@@ -500,8 +548,12 @@ Important Rules:
             welcomeMessage.remove();
         }
 
+        // 等待streaming-markdown库加载
+        await this.waitForStreamingMarkdown();
+
         // 显示历史消息
-        this.chatHistory.forEach((item, index) => {
+        for (let index = 0; index < this.chatHistory.length; index++) {
+            const item = this.chatHistory[index];
             const messageId = `history-${index}`;
             
             // 添加用户消息
@@ -517,20 +569,32 @@ Important Rules:
                     <div class="agent-message agent1-message">
                         <div class="agent-label">💭 对话助手</div>
                         <div class="message-bubble">
-                            <div class="response-content">${this.escapeHtml(item.agent1Response)}</div>
+                            <div class="response-content" id="agent1-history-${index}"></div>
                         </div>
                     </div>
                     <div class="agent-message agent2-message">
                         <div class="agent-label">✏️ 纠错助手</div>
                         <div class="message-bubble">
-                            <div class="response-content">${this.escapeHtml(item.agent2Response)}</div>
+                            <div class="response-content" id="agent2-history-${index}"></div>
                         </div>
                     </div>
                 </div>
             `;
             
             chatMessages.appendChild(messageGroup);
-        });
+
+            // 使用markdown渲染历史消息
+            const agent1Element = document.getElementById(`agent1-history-${index}`);
+            const agent2Element = document.getElementById(`agent2-history-${index}`);
+            
+            if (agent1Element && item.agent1Response) {
+                await this.renderMarkdownContent(agent1Element, item.agent1Response, 'agent1', `history-${index}`);
+            }
+            
+            if (agent2Element && item.agent2Response) {
+                await this.renderMarkdownContent(agent2Element, item.agent2Response, 'agent2', `history-${index}`);
+            }
+        }
 
         this.scrollToBottom();
     }
