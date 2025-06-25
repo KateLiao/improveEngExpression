@@ -330,19 +330,13 @@ Important Rules:
         const typingIndicator = responseElement.parentElement.querySelector('.typing-indicator');
         
         try {
+            // 构建对话历史消息数组
+            const messages = this.buildMessagesWithHistory(prompt, userInput, agentType);
+            
             // 构建发送到后端的请求数据
             const requestBody = {
                 provider: currentApi,  // 告诉后端使用哪个API提供商
-                messages: [
-                    {
-                        role: "system",
-                        content: prompt
-                    },
-                    {
-                        role: "user",
-                        content: userInput
-                    }
-                ],
+                messages: messages,
                 temperature: 0.7,
                 max_tokens: 1000,
                 stream: true
@@ -442,6 +436,53 @@ Important Rules:
         }
     }
 
+    // 构建包含历史对话的消息数组
+    buildMessagesWithHistory(systemPrompt, currentUserInput, agentType) {
+        const messages = [];
+        
+        // 1. 添加系统提示词
+        messages.push({
+            role: "system",
+            content: systemPrompt
+        });
+        
+        // 2. 添加历史对话（最多保留最近的10轮对话，避免token过多）
+        const maxHistoryRounds = 10;
+        const recentHistory = this.chatHistory.slice(-maxHistoryRounds);
+        
+        recentHistory.forEach(historyItem => {
+            // 添加历史用户消息
+            messages.push({
+                role: "user",
+                content: historyItem.userInput
+            });
+            
+            // 添加对应的Agent历史回复
+            let assistantResponse = '';
+            if (agentType === 'agent1' && historyItem.agent1Response) {
+                assistantResponse = historyItem.agent1Response;
+            } else if (agentType === 'agent2' && historyItem.agent2Response) {
+                assistantResponse = historyItem.agent2Response;
+            }
+            
+            if (assistantResponse) {
+                messages.push({
+                    role: "assistant",
+                    content: assistantResponse
+                });
+            }
+        });
+        
+        // 3. 添加当前用户输入
+        messages.push({
+            role: "user",
+            content: currentUserInput
+        });
+        
+        console.log(`构建${agentType}消息历史，包含${recentHistory.length}轮历史对话`);
+        return messages;
+    }
+
     // 等待streaming-markdown库加载
     async waitForStreamingMarkdown() {
         let retries = 0;
@@ -478,19 +519,13 @@ Important Rules:
     async callAgentFallback(prompt, userInput, agentType) {
         const currentApi = this.config.currentApi;
 
+        // 构建对话历史消息数组
+        const messages = this.buildMessagesWithHistory(prompt, userInput, agentType);
+
         // 构建发送到后端的请求数据（非流式）
         const requestBody = {
             provider: currentApi,
-            messages: [
-                {
-                    role: "system",
-                    content: prompt
-                },
-                {
-                    role: "user",
-                    content: userInput
-                }
-            ],
+            messages: messages,
             temperature: 0.7,
             max_tokens: 1000,
             stream: false  // 非流式请求
