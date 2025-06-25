@@ -25,7 +25,7 @@ class EnglishChatApp {
                 const healthResponse = await fetch('http://localhost:5000/api/health');
                 if (healthResponse.ok) {
                     const healthData = await healthResponse.json();
-                    console.log('后端服务状态:', healthData.message);
+                    // 后端服务连接成功
                     
                     // 获取可用的API提供商
                     const providersResponse = await fetch('http://localhost:5000/api/providers');
@@ -243,15 +243,21 @@ Important Rules:
             ]);
 
             // 保存到历史记录
+            const agent1Element = document.getElementById(`agent1-${messageId}`);
+            const agent2Element = document.getElementById(`agent2-${messageId}`);
+            
             const historyItem = {
                 timestamp: new Date().toLocaleString('zh-CN'),
                 userInput: userInput,
-                agent1Response: document.getElementById(`agent1-${messageId}`).textContent,
-                agent2Response: document.getElementById(`agent2-${messageId}`).textContent
+                agent1Response: agent1Element ? agent1Element.textContent.trim() : '',
+                agent2Response: agent2Element ? agent2Element.textContent.trim() : ''
             };
 
-            this.chatHistory.push(historyItem);
-            this.saveChatHistory();
+            // 只有当至少有一个Agent有有效回复时才保存
+            if (historyItem.agent1Response || historyItem.agent2Response) {
+                this.chatHistory.push(historyItem);
+                this.saveChatHistory();
+            }
 
         } catch (error) {
             console.error('发送消息时出错:', error);
@@ -333,6 +339,11 @@ Important Rules:
             // 构建对话历史消息数组
             const messages = this.buildMessagesWithHistory(prompt, userInput, agentType);
             
+            // 检查messages是否有效
+            if (!messages || messages.length === 0) {
+                throw new Error(`${agentType} - 消息数组构建失败`);
+            }
+            
             // 构建发送到后端的请求数据
             const requestBody = {
                 provider: currentApi,  // 告诉后端使用哪个API提供商
@@ -341,6 +352,8 @@ Important Rules:
                 max_tokens: 1000,
                 stream: true
             };
+            
+
 
             // 调用本地Flask后端API
             const response = await fetch('http://localhost:5000/api/llm', {
@@ -415,6 +428,7 @@ Important Rules:
 
             // 如果没有收到流式数据，尝试非流式调用
             if (!responseElement.textContent.trim()) {
+                console.warn(`${agentType} - 流式响应为空，尝试非流式调用`);
                 const fallbackContent = await this.callAgentFallback(prompt, userInput, agentType);
                 await this.renderMarkdownContent(responseElement, fallbackContent, agentType, messageId);
             }
@@ -446,23 +460,39 @@ Important Rules:
             content: systemPrompt
         });
         
-        // 2. 添加历史对话（最多保留最近的10轮对话，避免token过多）
-        const maxHistoryRounds = 10;
+        // 2. 如果是第一轮对话，直接添加用户输入，无需处理历史
+        if (!this.chatHistory || this.chatHistory.length === 0) {
+            messages.push({
+                role: "user",
+                content: currentUserInput
+            });
+            
+            return messages;
+        }
+        
+        // 3. 添加历史对话（最多保留最近的5轮对话，减少token使用）
+        const maxHistoryRounds = 5;
         const recentHistory = this.chatHistory.slice(-maxHistoryRounds);
         
+        let addedHistoryCount = 0;
         recentHistory.forEach(historyItem => {
+            // 检查历史项是否有效
+            if (!historyItem || !historyItem.userInput) {
+                return; // 跳过无效的历史项
+            }
+            
             // 添加历史用户消息
             messages.push({
                 role: "user",
                 content: historyItem.userInput
             });
             
-            // 添加对应的Agent历史回复
+            // 添加对应的Agent历史回复（必须有有效回复才添加）
             let assistantResponse = '';
-            if (agentType === 'agent1' && historyItem.agent1Response) {
-                assistantResponse = historyItem.agent1Response;
-            } else if (agentType === 'agent2' && historyItem.agent2Response) {
-                assistantResponse = historyItem.agent2Response;
+            if (agentType === 'agent1' && historyItem.agent1Response && historyItem.agent1Response.trim()) {
+                assistantResponse = historyItem.agent1Response.trim();
+            } else if (agentType === 'agent2' && historyItem.agent2Response && historyItem.agent2Response.trim()) {
+                assistantResponse = historyItem.agent2Response.trim();
             }
             
             if (assistantResponse) {
@@ -470,16 +500,17 @@ Important Rules:
                     role: "assistant",
                     content: assistantResponse
                 });
+                addedHistoryCount++;
             }
         });
         
-        // 3. 添加当前用户输入
+        // 4. 添加当前用户输入
         messages.push({
             role: "user",
             content: currentUserInput
         });
         
-        console.log(`构建${agentType}消息历史，包含${recentHistory.length}轮历史对话`);
+
         return messages;
     }
 
@@ -519,6 +550,7 @@ Important Rules:
     async callAgentFallback(prompt, userInput, agentType) {
         const currentApi = this.config.currentApi;
 
+
         // 构建对话历史消息数组
         const messages = this.buildMessagesWithHistory(prompt, userInput, agentType);
 
@@ -530,6 +562,8 @@ Important Rules:
             max_tokens: 1000,
             stream: false  // 非流式请求
         };
+        
+
 
         // 调用本地Flask后端API
         const response = await fetch('http://localhost:5000/api/llm', {
@@ -554,7 +588,6 @@ Important Rules:
         } else {
             content = '未获取到有效响应';
         }
-
         return content;
     }
 
@@ -744,5 +777,5 @@ function clearChatHistory() {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('英语对话助手已启动！');
+    // 应用已启动
 }); 
