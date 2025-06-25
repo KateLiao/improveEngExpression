@@ -1,12 +1,20 @@
 # 🎯 英语对话小老师
 
-一个本地运行的LLM英语对话网页应用，可以同时进行英语对话练习和语法纠正。
+一个本地运行的LLM英语对话网页应用，支持**语音交互**和**文本对话**，可以同时进行英语口语练习和语法纠正。
 
 ## 📋 功能特性
 
 ### 🤖 双Agent架构
 - **Agent1 - 对话助手**：与用户进行自然的英语对话交流
 - **Agent2 - 纠错助手**：专门对用户输入进行语法和拼写纠正
+
+### 🎤 语音交互功能 (第二阶段已完成)
+- ✅ **后端语音服务**：完整的腾讯云实时语音识别集成
+- ✅ **WebSocket代理**：高性能的音频数据传输服务
+- ✅ **音频处理**：支持多种音频格式转换和质量检查
+- ✅ **会话管理**：语音连接的创建、状态监控和管理
+- 🔴 **前端录音**：浏览器录音功能（开发中）
+- 🔴 **语音输出**：文本转语音播放（规划中）
 
 ### 🔧 核心功能
 - ✅ **Prompt配置管理**：可自定义两个Agent的Prompt，保存在LocalStorage
@@ -37,6 +45,14 @@ TONGYI_API_KEY=sk-your-actual-tongyi-api-key
 
 # DeepSeek API 密钥  
 DEEPSEEK_API_KEY=sk-your-actual-deepseek-api-key
+
+# 语音功能配置 (可选 - 启用语音交互功能)
+# 腾讯云语音识别服务配置
+TENCENT_ASR_APP_ID=your-app-id
+TENCENT_ASR_SECRET_ID=your-secret-id
+TENCENT_ASR_SECRET_KEY=your-secret-key
+TENCENT_ASR_REGION=ap-beijing
+TENCENT_ASR_ENGINE_TYPE=16k_zh
 ```
 
 ### 2. 获取API密钥
@@ -49,6 +65,14 @@ DEEPSEEK_API_KEY=sk-your-actual-deepseek-api-key
 #### DeepSeek API Key
 1. 访问 [DeepSeek 开放平台](https://platform.deepseek.com/)
 2. 注册并创建API Key
+
+#### 腾讯云语音识别 (可选)
+1. 访问 [腾讯云控制台](https://console.cloud.tencent.com/)
+2. 开通语音识别服务
+3. 在访问管理中创建SecretID和SecretKey
+4. 获取AppID（在账号信息中查看）
+
+**注意**：语音功能为可选功能，不配置也能正常使用文本对话功能。
 
 ### 3. 启动应用
 
@@ -84,6 +108,33 @@ php -S localhost:8000
 ```
 
 然后在浏览器中访问：`http://localhost:8000`
+
+### 4. 验证语音功能（可选）
+
+如果配置了腾讯云语音识别，可以验证语音功能：
+
+1. **检查服务器启动日志**：
+   ```
+   🎤 语音功能状态:
+     TENCENT_ASR_APP_ID: ✅ 已配置
+     TENCENT_ASR_SECRET_ID: ✅ 已配置
+     TENCENT_ASR_SECRET_KEY: ✅ 已配置
+     🎉 语音功能已就绪！
+   ```
+
+2. **测试语音API**：
+   在浏览器开发者工具Console中运行：
+   ```javascript
+   // 测试语音配置
+   fetch('/api/speech/test').then(r => r.json()).then(data => console.log(data));
+   
+   // 测试语音连接
+   fetch('/api/speech/connect', {
+       method: 'POST',
+       headers: {'Content-Type': 'application/json'},
+       body: JSON.stringify({client_id: 'test'})
+   }).then(r => r.json()).then(data => console.log(data));
+   ```
 
 ## 📖 使用说明
 
@@ -161,11 +212,23 @@ Important Rules:
 
 ## 🛠️ 技术栈
 
-- **前端**：原生HTML + CSS + JavaScript
-- **后端**：Flask + Python 
+### 核心技术
+- **前端**：原生HTML + CSS + JavaScript + Web Audio API
+- **后端**：Flask + Python + WebSocket + SocketIO
 - **存储**：LocalStorage（Prompt + 历史记录）
-- **API集成**：支持通义千问和DeepSeek
-- **架构**：双Agent并行调用 + 后端API代理
+- **API集成**：通义千问 + DeepSeek + 腾讯云语音识别
+
+### 语音功能技术栈
+- **语音识别**：腾讯云实时语音识别 WebSocket API
+- **音频处理**：Python pydub + numpy + librosa
+- **数据传输**：Flask-SocketIO + WebSocket代理
+- **音频格式**：PCM/WAV 16kHz 单声道
+
+### 架构设计
+- **双Agent并行调用**：对话助手 + 纠错助手
+- **后端API代理**：统一的LLM服务接口
+- **语音服务代理**：WebSocket音频数据转发
+- **会话管理**：语音连接状态和生命周期管理
 
 ## 📄 许可证
 

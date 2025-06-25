@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 import requests
 import json
@@ -10,6 +10,30 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
+
+# 静态文件和首页路由
+@app.route('/')
+def index():
+    """
+    首页路由 - 返回主页面
+    """
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    """
+    静态文件路由 - 服务CSS、JS等静态资源
+    """
+    return send_from_directory('.', filename)
+
+# 语音功能相关导入
+try:
+    from websocket_handler import setup_websocket_handler
+    from audio_processor import audio_processor
+    SPEECH_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ 语音功能模块导入失败: {e}")
+    SPEECH_AVAILABLE = False
 
 # API配置 - 从环境变量中读取API密钥
 API_CONFIGS = {
@@ -174,6 +198,113 @@ def get_providers():
         }
     return jsonify(providers)
 
+# 语音功能相关路由
+@app.route('/api/speech/test', methods=['GET'])
+def test_speech_config():
+    """
+    测试语音配置
+    """
+    if not SPEECH_AVAILABLE:
+        return jsonify({
+            "success": False,
+            "error": "语音功能不可用",
+            "message": "语音模块导入失败"
+        }), 503
+    
+    # 检查腾讯云配置
+    required_configs = [
+        'TENCENT_ASR_APP_ID',
+        'TENCENT_ASR_SECRET_ID', 
+        'TENCENT_ASR_SECRET_KEY',
+        'TENCENT_ASR_REGION',
+        'TENCENT_ASR_ENGINE_TYPE'
+    ]
+    
+    config_status = {}
+    all_configured = True
+    
+    for config in required_configs:
+        value = os.getenv(config)
+        is_configured = bool(value and value != f"your_{config.lower().replace('tencent_asr_', '')}")
+        config_status[config] = is_configured
+        if not is_configured:
+            all_configured = False
+    
+    return jsonify({
+        "success": all_configured,
+        "speech_available": SPEECH_AVAILABLE,
+        "config_status": config_status,
+        "message": "语音功能配置正常" if all_configured else "语音功能配置不完整"
+    })
+
+@app.route('/api/speech/audio/process', methods=['POST'])
+def process_audio():
+    """
+    处理音频数据
+    """
+    if not SPEECH_AVAILABLE:
+        return jsonify({
+            "success": False,
+            "error": "语音功能不可用"
+        }), 503
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "请求数据为空"
+            }), 400
+        
+        audio_base64 = data.get('audio_data')
+        source_format = data.get('format', 'wav')
+        
+        if not audio_base64:
+            return jsonify({
+                "success": False,
+                "error": "音频数据为空"
+            }), 400
+        
+        # 解码音频数据
+        audio_data = audio_processor.base64_to_audio(audio_base64)
+        if not audio_data:
+            return jsonify({
+                "success": False,
+                "error": "音频数据解码失败"
+            }), 400
+        
+        # 提取音频信息
+        audio_info = audio_processor.extract_audio_info(audio_data, source_format)
+        
+        # 验证音频质量
+        quality_ok, quality_msg = audio_processor.validate_audio_quality(audio_data)
+        
+        # 转换为PCM格式
+        pcm_data = audio_processor.convert_to_pcm(audio_data, source_format)
+        
+        response_data = {
+            "success": True,
+            "audio_info": audio_info,
+            "quality_check": {
+                "passed": quality_ok,
+                "message": quality_msg
+            },
+            "processed": bool(pcm_data),
+            "message": "音频处理完成"
+        }
+        
+        if pcm_data:
+            response_data["processed_audio"] = audio_processor.audio_to_base64(pcm_data)
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        app.logger.error(f"音频处理失败: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
     # 检查环境变量配置
     print("🚀 启动Flask LLM代理服务...")
@@ -188,8 +319,51 @@ if __name__ == '__main__':
         print("TONGYI_API_KEY=your_tongyi_api_key")
         print("DEEPSEEK_API_KEY=your_deepseek_api_key")
     
+    # 检查语音功能配置
+    print("\n🎤 语音功能状态:")
+    if SPEECH_AVAILABLE:
+        # 检查腾讯云配置
+        tencent_configs = [
+            ('TENCENT_ASR_APP_ID', os.getenv('TENCENT_ASR_APP_ID')),
+            ('TENCENT_ASR_SECRET_ID', os.getenv('TENCENT_ASR_SECRET_ID')),
+            ('TENCENT_ASR_SECRET_KEY', os.getenv('TENCENT_ASR_SECRET_KEY'))
+        ]
+        
+        speech_configured = True
+        for name, value in tencent_configs:
+            if value and value != f"your_{name.lower().replace('tencent_asr_', '')}":
+                print(f"  {name}: ✅ 已配置")
+            else:
+                print(f"  {name}: ❌ 未配置") 
+                speech_configured = False
+        
+        if speech_configured:
+            print("  🎉 语音功能已就绪！")
+        else:
+            print("  ⚠️ 语音功能配置不完整")
+            
+        # 设置WebSocket支持
+        try:
+            socketio = setup_websocket_handler(app)
+            print("  🔗 WebSocket语音代理已启用")
+        except Exception as e:
+            print(f"  ❌ WebSocket设置失败: {e}")
+            
+    else:
+        print("  ❌ 语音功能模块不可用")
+    
     print(f"\n🌐 服务将运行在: http://localhost:5000")
     print("🔍 健康检查: http://localhost:5000/api/health")
-    print("📡 API接口: http://localhost:5000/api/llm")
+    print("📡 LLM API: http://localhost:5000/api/llm")
     
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    if SPEECH_AVAILABLE:
+        print("🎤 语音API测试: http://localhost:5000/api/speech/test")
+        print("🔊 音频处理: http://localhost:5000/api/speech/audio/process")
+    
+    # 启动服务器
+    if SPEECH_AVAILABLE and 'socketio' in locals():
+        # 使用SocketIO运行（支持WebSocket）
+        socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    else:
+        # 使用普通Flask运行
+        app.run(debug=True, host='0.0.0.0', port=5000) 
