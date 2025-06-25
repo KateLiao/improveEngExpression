@@ -22,32 +22,21 @@
 首次使用需要配置您的API密钥：
 
 ```bash
-# 复制配置模板文件
-cp config.template.json config.json
+# 复制环境变量模板文件
+cp env.template .env
 
-# 编辑config.json，将占位符替换为您的真实API密钥
+# 编辑.env文件，将占位符替换为您的真实API密钥
 ```
 
-编辑 `config.json` 文件：
+编辑 `.env` 文件：
 
-```json
-{
-  "currentApi": "tongyi",
-  "apis": {
-    "tongyi": {
-      "name": "通义千问",
-      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-      "model": "qwen-plus",
-      "apiKey": "sk-your-actual-tongyi-api-key"  // 替换为您的通义千问API Key
-    },
-    "deepseek": {
-      "name": "DeepSeek",
-      "endpoint": "https://api.deepseek.com/v1/chat/completions",
-      "model": "deepseek-chat",
-      "apiKey": "sk-your-actual-deepseek-api-key"  // 替换为您的DeepSeek API Key
-    }
-  }
-}
+```bash
+# LLM API 密钥配置
+# 通义千问 API 密钥
+TONGYI_API_KEY=sk-your-actual-tongyi-api-key
+
+# DeepSeek API 密钥  
+DEEPSEEK_API_KEY=sk-your-actual-deepseek-api-key
 ```
 
 ### 2. 获取API密钥
@@ -63,9 +52,27 @@ cp config.template.json config.json
 
 ### 3. 启动应用
 
-由于浏览器安全策略，需要通过HTTP服务器运行：
+#### 方法一：使用启动脚本（推荐）
 
 ```bash
+# 运行后端启动脚本（自动安装依赖、检查配置、启动服务）
+python start-backend.py
+```
+
+#### 方法二：手动启动
+
+```bash
+# 1. 安装Python依赖
+pip install -r requirements.txt
+
+# 2. 启动Flask后端服务
+python server.py
+```
+
+后端服务启动后，使用HTTP服务器运行前端：
+
+```bash
+# 新开一个终端窗口，启动前端服务
 # 使用Python (推荐)
 python -m http.server 8000
 
@@ -155,9 +162,10 @@ Important Rules:
 ## 🛠️ 技术栈
 
 - **前端**：原生HTML + CSS + JavaScript
+- **后端**：Flask + Python 
 - **存储**：LocalStorage（Prompt + 历史记录）
 - **API集成**：支持通义千问和DeepSeek
-- **架构**：双Agent并行调用
+- **架构**：双Agent并行调用 + 后端API代理
 
 ## 📄 许可证
 
@@ -167,9 +175,10 @@ Important Rules:
 
 ## 🔒 安全注意事项
 
-- ⚠️ **API密钥安全**：`config.json` 文件包含您的私人API密钥，已被添加到 `.gitignore` 中，不会被提交到Git仓库
+- ⚠️ **API密钥安全**：`.env` 文件包含您的私人API密钥，已被添加到 `.gitignore` 中，不会被提交到Git仓库
 - 🔐 **密钥保护**：请妥善保管您的API密钥，避免在公共场所或代码仓库中泄露
-- 🚫 **不要分享**：不要将包含真实API密钥的 `config.json` 文件分享给他人
-- 📋 **使用模板**：分享项目时，请使用 `config.template.json` 作为配置模板
+- 🚫 **不要分享**：不要将包含真实API密钥的 `.env` 文件分享给他人
+- 📋 **使用模板**：分享项目时，请使用 `env.template` 作为配置模板
+- 🛡️ **后端安全**：API密钥现在安全存储在后端服务器中，前端无法直接访问
 
 **注意**：本应用需要有效的API Key才能正常工作。请确保妥善保管您的API密钥，避免泄露。 

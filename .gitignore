@@ -1,5 +1,18 @@
 # 忽略包含真实API密钥的配置文件
 config.json
+.env
+
+# Python相关文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # 忽略临时文件
 *.tmp

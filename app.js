@@ -20,52 +20,73 @@ class EnglishChatApp {
     // 加载配置文件
     async loadConfig() {
         try {
-            // 首先尝试从config.json加载配置
-            let configLoaded = false;
-            
+            // 检查后端健康状态和可用的API提供商
             try {
-                const response = await fetch('./config.json');
-                if (response.ok) {
-                    this.config = await response.json();
-                    configLoaded = true;
-                }
-            } catch (fetchError) {
-                console.log('无法加载config.json，使用默认配置');
-            }
-            
-            // 如果无法加载config.json，使用默认模板配置
-            if (!configLoaded) {
-                this.config = {
-                    "currentApi": "tongyi",
-                    "apis": {
-                        "tongyi": {
-                            "name": "通义千问",
-                            "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-                            "model": "qwen-plus",
-                            "apiKey": "YOUR_TONGYI_API_KEY_HERE"
-                        },
-                        "deepseek": {
-                            "name": "DeepSeek",
-                            "endpoint": "https://api.deepseek.com/v1/chat/completions",
-                            "model": "deepseek-chat",
-                            "apiKey": "YOUR_DEEPSEEK_API_KEY_HERE"
+                const healthResponse = await fetch('http://localhost:5000/api/health');
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    console.log('后端服务状态:', healthData.message);
+                    
+                    // 获取可用的API提供商
+                    const providersResponse = await fetch('http://localhost:5000/api/providers');
+                    if (providersResponse.ok) {
+                        const providers = await providersResponse.json();
+                        
+                        // 设置前端配置（仅用于界面显示）
+                        this.config = {
+                            currentApi: "tongyi",  // 默认使用通义千问
+                            providers: providers
+                        };
+                        
+                        // 检查是否有可用的API
+                        const availableApis = Object.keys(providers).filter(key => providers[key].available);
+                        if (availableApis.length === 0) {
+                            this.showNotification('后端未配置任何API密钥！请在.env文件中配置API密钥后重启服务', 'error');
+                        } else {
+                            this.showNotification(`已连接到后端服务，可用API: ${availableApis.map(api => providers[api].name).join(', ')}`, 'success');
+                        }
+                        
+                        // 设置当前API选择
+                        const apiSelect = document.getElementById('apiSelect');
+                        if (apiSelect) {
+                            // 清空现有选项
+                            apiSelect.innerHTML = '';
+                            // 添加可用的API选项
+                            Object.keys(providers).forEach(key => {
+                                const option = document.createElement('option');
+                                option.value = key;
+                                option.textContent = providers[key].name;
+                                option.disabled = !providers[key].available;
+                                apiSelect.appendChild(option);
+                            });
+                            
+                            // 设置默认选择
+                            if (availableApis.length > 0) {
+                                apiSelect.value = availableApis.includes('tongyi') ? 'tongyi' : availableApis[0];
+                                this.config.currentApi = apiSelect.value;
+                            }
                         }
                     }
-                };
+                } else {
+                    throw new Error('后端服务不可用');
+                }
+            } catch (backendError) {
+                console.error('后端连接失败:', backendError);
+                this.showNotification('无法连接到后端服务！请确保Flask服务已启动（http://localhost:5000）', 'error');
                 
-                // 提示用户配置API密钥
-                this.showNotification('请先配置您的API密钥！复制config.template.json为config.json并填入真实的API密钥', 'warning');
-            }
-            
-            // 设置当前API选择
-            const apiSelect = document.getElementById('apiSelect');
-            if (apiSelect) {
-                apiSelect.value = this.config.currentApi;
+                // 使用默认配置以便前端界面正常显示
+                this.config = {
+                    currentApi: "tongyi",
+                    providers: {
+                        "tongyi": { name: "通义千问", available: false },
+                        "deepseek": { name: "DeepSeek", available: false }
+                    }
+                };
             }
             
         } catch (error) {
-            console.error('加载配置失败:', error);
-            this.showNotification('配置加载失败，请刷新页面重试', 'error');
+            console.error('配置加载失败:', error);
+            this.showNotification('配置加载失败，请检查网络连接', 'error');
         }
     }
 
@@ -180,11 +201,16 @@ Important Rules:
             return;
         }
 
-        // 检查API密钥是否已配置
+        // 检查后端是否可用
+        if (!this.config || !this.config.providers) {
+            this.showNotification('后端服务未连接，请刷新页面重试', 'error');
+            return;
+        }
+
         const currentApi = this.config.currentApi;
-        const apiConfig = this.config.apis[currentApi];
-        if (!apiConfig || apiConfig.apiKey === 'YOUR_TONGYI_API_KEY_HERE' || apiConfig.apiKey === 'YOUR_DEEPSEEK_API_KEY_HERE') {
-            this.showNotification('请先配置您的API密钥！复制config.template.json为config.json并填入真实的API密钥', 'error');
+        const provider = this.config.providers[currentApi];
+        if (!provider || !provider.available) {
+            this.showNotification(`${provider ? provider.name : currentApi} API未配置，请在后端.env文件中配置API密钥`, 'error');
             return;
         }
 
@@ -299,77 +325,41 @@ Important Rules:
     // 流式调用Agent响应
     async streamAgentResponse(prompt, userInput, messageId, agentType) {
         const currentApi = this.config.currentApi;
-        const apiConfig = this.config.apis[currentApi];
-
-        if (!apiConfig) {
-            throw new Error(`未找到${currentApi}的API配置`);
-        }
 
         const responseElement = document.getElementById(`${agentType}-${messageId}`);
         const typingIndicator = responseElement.parentElement.querySelector('.typing-indicator');
         
         try {
-            let requestBody;
-            let headers;
-
-            if (currentApi === 'tongyi') {
-                // 通义千问使用OpenAI兼容格式（流式）
-                requestBody = {
-                    model: apiConfig.model,
-                    messages: [
-                        {
-                            role: "system",
-                            content: prompt
-                        },
-                        {
-                            role: "user",
-                            content: userInput
-                        }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: 1000,
-                    stream: true,
-                    stream_options: {
-                        include_usage: true
+            // 构建发送到后端的请求数据
+            const requestBody = {
+                provider: currentApi,  // 告诉后端使用哪个API提供商
+                messages: [
+                    {
+                        role: "system",
+                        content: prompt
+                    },
+                    {
+                        role: "user",
+                        content: userInput
                     }
-                };
-                headers = {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiConfig.apiKey}`
-                };
-            } else if (currentApi === 'deepseek') {
-                // DeepSeek API格式（OpenAI兼容）
-                requestBody = {
-                    model: apiConfig.model,
-                    messages: [
-                        {
-                            role: "system",
-                            content: prompt
-                        },
-                        {
-                            role: "user",
-                            content: userInput
-                        }
-                    ],
-                    temperature: 0.7,
-                    max_tokens: 1000,
-                    stream: true
-                };
-                headers = {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiConfig.apiKey}`
-                };
-            }
+                ],
+                temperature: 0.7,
+                max_tokens: 1000,
+                stream: true
+            };
 
-            const response = await fetch(apiConfig.endpoint, {
+            // 调用本地Flask后端API
+            const response = await fetch('http://localhost:5000/api/llm', {
                 method: 'POST',
-                headers: headers,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`${currentApi} API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+                throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
             }
 
             // 隐藏打字指示器，显示响应内容
@@ -487,14 +477,10 @@ Important Rules:
     // 非流式调用备用方案
     async callAgentFallback(prompt, userInput, agentType) {
         const currentApi = this.config.currentApi;
-        const apiConfig = this.config.apis[currentApi];
 
-        let requestBody;
-        let headers;
-
-        // 统一使用OpenAI兼容格式
-        requestBody = {
-            model: apiConfig.model,
+        // 构建发送到后端的请求数据（非流式）
+        const requestBody = {
+            provider: currentApi,
             messages: [
                 {
                     role: "system",
@@ -506,22 +492,22 @@ Important Rules:
                 }
             ],
             temperature: 0.7,
-            max_tokens: 1000
-        };
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiConfig.apiKey}`
+            max_tokens: 1000,
+            stream: false  // 非流式请求
         };
 
-        const response = await fetch(apiConfig.endpoint, {
+        // 调用本地Flask后端API
+        const response = await fetch('http://localhost:5000/api/llm', {
             method: 'POST',
-            headers: headers,
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`${currentApi} API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
+            throw new Error(`API请求失败: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
