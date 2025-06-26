@@ -22,13 +22,13 @@ class EnglishChatApp {
         try {
             // 检查后端健康状态和可用的API提供商
             try {
-                const healthResponse = await fetch('http://localhost:5000/api/health');
+                const healthResponse = await fetch('http://localhost:4399/api/health');
                 if (healthResponse.ok) {
                     const healthData = await healthResponse.json();
                     // 后端服务连接成功
                     
                     // 获取可用的API提供商
-                    const providersResponse = await fetch('http://localhost:5000/api/providers');
+                    const providersResponse = await fetch('http://localhost:4399/api/providers');
                     if (providersResponse.ok) {
                         const providers = await providersResponse.json();
                         
@@ -72,7 +72,7 @@ class EnglishChatApp {
                 }
             } catch (backendError) {
                 console.error('后端连接失败:', backendError);
-                this.showNotification('无法连接到后端服务！请确保Flask服务已启动（http://localhost:5000）', 'error');
+                this.showNotification('无法连接到后端服务！请确保Flask服务已启动（http://localhost:4399）', 'error');
                 
                 // 使用默认配置以便前端界面正常显示
                 this.config = {
@@ -101,7 +101,7 @@ class EnglishChatApp {
 请直接用英语回复用户的消息。`;
 
         const defaultAgent2Prompt = `Role: You are a professional English expression refinement assistant.
-Task: When given a sentence written by a non-native English learner, correct and improve the sentence to make it sound as natural, fluent, and native-like as possible. Your goal is not only to fix grammar or spelling mistakes, but also to enhance word choice, phrasing, and tone to match how a native speaker would naturally express the idea.
+Task: When given a sentence written by a non-native English learner, correct and improve the sentence to make it sound as natural, fluent, and native-like as possible. Your goal is not only to fix grammar or spelling mistakes, but also to enhance word choice, phrasing, and tone to match how a native speaker would naturally express the idea. You must not answer any questions posed by the user, only modify the sentence as required.
 If the original sentence is already clear, natural, and native-like, you may leave it unchanged.
 Output Format: Return only the improved sentence without any explanations, comments, or analysis.
 Important Rules:
@@ -224,6 +224,10 @@ Important Rules:
 
         // 清空输入框
         chatInput.value = '';
+        
+        // 清除语音识别的累加结果
+        currentVoiceText = '';
+        accumulatedVoiceText = '';
 
         // 添加用户消息到界面
         this.addUserMessage(userInput);
@@ -308,7 +312,7 @@ Important Rules:
                 </div>
             </div>
             <div class="agent-message agent2-message">
-                <div class="agent-label">✏️ 纠错助手</div>
+                <div class="agent-label">✏️ 优化表达</div>
                 <div class="message-bubble">
                     <div class="typing-indicator">
                         <span>正在分析</span>
@@ -356,7 +360,7 @@ Important Rules:
 
 
             // 调用本地Flask后端API
-            const response = await fetch('http://localhost:5000/api/llm', {
+            const response = await fetch('http://localhost:4399/api/llm', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -445,7 +449,7 @@ Important Rules:
                 const fallbackContent = await this.callAgentFallback(prompt, userInput, agentType);
                 await this.renderMarkdownContent(responseElement, fallbackContent, agentType, messageId);
             } catch (fallbackError) {
-                responseElement.textContent = `❌ ${agentType === 'agent1' ? '对话助手' : '纠错助手'}响应失败`;
+                responseElement.textContent = `❌ ${agentType === 'agent1' ? '对话助手' : '优化表达'}响应失败`;
             }
         }
     }
@@ -566,7 +570,7 @@ Important Rules:
 
 
         // 调用本地Flask后端API
-        const response = await fetch('http://localhost:5000/api/llm', {
+        const response = await fetch('http://localhost:4399/api/llm', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -627,7 +631,7 @@ Important Rules:
                         </div>
                     </div>
                     <div class="agent-message agent2-message">
-                        <div class="agent-label">✏️ 纠错助手</div>
+                        <div class="agent-label">✏️ 优化表达</div>
                         <div class="message-bubble">
                             <div class="response-content" id="agent2-history-${index}"></div>
                         </div>
@@ -667,7 +671,7 @@ Important Rules:
                         <div class="message-content">
                             🎯 欢迎使用英语对话助手！<br>
                             💭 对话助手将与您进行英语交流<br>
-                            ✏️ 纠错助手将分析您的语法<br>
+                            ✏️ 纠错助手将为您提供优化表达<br>
                             开始输入您的英文消息吧！
                         </div>
                     </div>
@@ -782,6 +786,7 @@ let isVoiceRecording = false;
 let voiceStartTime = null;
 let voiceTimer = null;
 let currentVoiceText = '';
+let accumulatedVoiceText = ''; // 累积的语音识别文本
 
 // 初始化语音功能
 function initVoiceFeature() {
@@ -855,8 +860,15 @@ async function startVoiceRecording() {
     
     // 重置状态
     currentVoiceText = '';
+    accumulatedVoiceText = ''; // 重置累积文本
     voiceStartTime = Date.now();
     updateVoiceTimer();
+    
+    // 清空实时识别结果显示
+    const realtimeTextElement = document.getElementById('realtimeResultText');
+    if (realtimeTextElement) {
+        realtimeTextElement.textContent = '';
+    }
     
     try {
         const success = await speechClient.startRecording();
@@ -939,6 +951,7 @@ function resetVoiceInputUI() {
     // 重置状态变量
     isVoiceRecording = false;
     currentVoiceText = '';
+    accumulatedVoiceText = ''; // 重置累积文本
 }
 
 // 隐藏语音UI（简化版，避免递归）
@@ -980,22 +993,27 @@ function updateVoiceStatusText(text) {
 function handleVoiceResult(result) {
     console.log('📝 收到语音识别结果:', result);
     
-    // 更新实时结果显示
     if (result.text) {
-        currentVoiceText = result.text;
+        if (result.isFinal) {
+            // 最终结果：累加到已确认文本中
+            console.log('✅ 句子结束，累加文本:', result.text);
+            accumulatedVoiceText += result.text;
+            
+            // 更新完整文本
+            currentVoiceText = accumulatedVoiceText;
+            
+            // 更新状态文本
+            updateVoiceStatusText('识别完成');
+        } else {
+            // 临时结果：显示累积文本 + 当前正在识别的文本
+            currentVoiceText = accumulatedVoiceText + result.text;
+        }
+        
+        // 更新实时显示
         const realtimeTextElement = document.getElementById('realtimeResultText');
         if (realtimeTextElement) {
-            realtimeTextElement.textContent = result.text;
+            realtimeTextElement.textContent = currentVoiceText;
         }
-    }
-    
-    // 如果是最终结果，准备发送
-    if (result.isFinal && result.text) {
-        console.log('✅ 最终识别结果:', result.text);
-        currentVoiceText = result.text;
-        
-        // 更新状态文本
-        updateVoiceStatusText('识别完成');
     }
 }
 

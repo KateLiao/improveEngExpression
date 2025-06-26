@@ -246,7 +246,7 @@ class AudioProcessor:
    python server.py
    
    # 测试语音功能API
-   curl http://localhost:5000/api/speech/test
+   curl http://localhost:4399/api/speech/test
    ```
 
 2. **开始第三阶段**：前端录音功能开发

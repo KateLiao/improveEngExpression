@@ -79,9 +79,9 @@ def start_server():
         sys.exit(1)
     
     print("\n🚀 启动Flask后端服务...")
-    print("🌐 服务地址: http://localhost:5000")
-    print("🔍 健康检查: http://localhost:5000/api/health")
-    print("📡 API接口: http://localhost:5000/api/llm")
+    print("🌐 服务地址: http://localhost:4399")
+    print("🔍 健康检查: http://localhost:4399/api/health")
+    print("📡 API接口: http://localhost:4399/api/llm")
     print("\n按 Ctrl+C 停止服务\n")
     
     try:

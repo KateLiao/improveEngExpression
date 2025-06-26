@@ -320,18 +320,18 @@ if __name__ == '__main__':
     else:
         print("  ❌ 语音功能模块不可用")
     
-    print(f"\n🌐 服务将运行在: http://localhost:5000")
-    print("🔍 健康检查: http://localhost:5000/api/health")
-    print("📡 LLM API: http://localhost:5000/api/llm")
+    print(f"\n🌐 服务将运行在: http://localhost:4399")
+    print("🔍 健康检查: http://localhost:4399/api/health")
+    print("📡 LLM API: http://localhost:4399/api/llm")
     
     if SPEECH_AVAILABLE:
-        print("🔑 STS临时密钥: http://localhost:5000/api/speech/sts-credentials")
-        print("🔊 音频处理: http://localhost:5000/api/speech/audio/process")
+        print("🔑 STS临时密钥: http://localhost:4399/api/speech/sts-credentials")
+        print("🔊 音频处理: http://localhost:4399/api/speech/audio/process")
     
     # 启动服务器
     if SPEECH_AVAILABLE and 'socketio' in locals():
         # 使用SocketIO运行（支持WebSocket）
-        socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+        socketio.run(app, debug=True, host='0.0.0.0', port=4399)
     else:
         # 使用普通Flask运行
-        app.run(debug=True, host='0.0.0.0', port=5000) 
+        app.run(debug=True, host='0.0.0.0', port=4399) 
