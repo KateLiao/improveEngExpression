@@ -1,4 +1,4 @@
-// 英语对话助手 - 双Agent架构应用
+// 英语对话助手 - 双角色协作应用
 class EnglishChatApp {
     constructor() {
         this.config = null;
@@ -109,7 +109,8 @@ Important Rules:
 2. Correct grammar, spelling, phrasing, and awkward or unnatural expressions.
 3. Do not add extra information or remove essential meaning from the original sentence.
 4. If the original sentence is perfectly fine for a native speaker to understand and use naturally, leave it unchanged.
-5. Output only the corrected (or original) sentence. No additional text.`;
+5. Output only the corrected (or original) sentence. No additional text.
+6. Don't answer any questions posed by the user, only modify the sentence as required.`;
 
         const agent1Prompt = localStorage.getItem('agent1Prompt') || defaultAgent1Prompt;
         const agent2Prompt = localStorage.getItem('agent2Prompt') || defaultAgent2Prompt;
@@ -232,7 +233,7 @@ Important Rules:
         // 添加用户消息到界面
         this.addUserMessage(userInput);
 
-        // 添加Agent响应容器
+        // 添加AI助手响应容器
         const agentContainer = this.addAgentResponseContainer(messageId);
 
         try {
@@ -240,7 +241,7 @@ Important Rules:
             const agent1Prompt = document.getElementById('agent1Prompt').value;
             const agent2Prompt = document.getElementById('agent2Prompt').value;
 
-            // 并行调用两个Agent（流式输出）
+            // 并行调用两个AI助手角色（流式输出）
             await Promise.all([
                 this.streamAgentResponse(agent1Prompt, userInput, messageId, 'agent1'),
                 this.streamAgentResponse(agent2Prompt, userInput, messageId, 'agent2')
@@ -257,7 +258,7 @@ Important Rules:
                 agent2Response: agent2Element ? agent2Element.textContent.trim() : ''
             };
 
-            // 只有当至少有一个Agent有有效回复时才保存
+            // 只有当至少有一个AI助手有有效回复时才保存
             if (historyItem.agent1Response || historyItem.agent2Response) {
                 this.chatHistory.push(historyItem);
                 this.saveChatHistory();
@@ -290,7 +291,7 @@ Important Rules:
         this.scrollToBottom();
     }
 
-    // 添加Agent响应容器
+    // 添加AI助手响应容器
     addAgentResponseContainer(messageId) {
         const chatMessages = document.getElementById('chatMessages');
         const responseContainer = document.createElement('div');
@@ -332,7 +333,7 @@ Important Rules:
         return responseContainer;
     }
 
-    // 流式调用Agent响应
+    // 流式调用AI助手响应
     async streamAgentResponse(prompt, userInput, messageId, agentType) {
         const currentApi = this.config.currentApi;
 
@@ -491,7 +492,7 @@ Important Rules:
                 content: historyItem.userInput
             });
             
-            // 添加对应的Agent历史回复（必须有有效回复才添加）
+            // 添加对应的AI助手历史回复（必须有有效回复才添加）
             let assistantResponse = '';
             if (agentType === 'agent1' && historyItem.agent1Response && historyItem.agent1Response.trim()) {
                 assistantResponse = historyItem.agent1Response.trim();
