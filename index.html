@@ -416,6 +416,118 @@
             transform: none;
         }
 
+        /* 语音输入按钮 */
+        .voice-input-btn {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .voice-input-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+
+        .voice-input-btn.recording {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            animation: voiceRecordingPulse 1.5s infinite;
+        }
+
+        .voice-input-btn.disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            animation: none;
+        }
+
+        /* 语音状态栏 */
+        .voice-status-bar {
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border-radius: 15px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .voice-status-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .voice-status-indicator {
+            font-size: 1.1rem;
+            animation: pulse 1.5s infinite;
+        }
+
+        .voice-status-text {
+            flex: 1;
+            font-weight: 600;
+        }
+
+        .voice-status-time {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-weight: bold;
+        }
+
+        /* 实时识别结果 */
+        .voice-realtime-result {
+            margin-top: 10px;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .realtime-result-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .realtime-result-label {
+            color: #667eea;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .realtime-result-text {
+            flex: 1;
+            color: #495057;
+            line-height: 1.4;
+            min-height: 20px;
+        }
+
+        @keyframes voiceRecordingPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        @keyframes slideDown {
+            from { 
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .chat-controls {
             padding: 20px;
             text-align: center;
@@ -555,6 +667,8 @@
             font-weight: 600;
         }
 
+
+
         @media (max-width: 768px) {
             .sidebar {
                 width: 60px;
@@ -662,10 +776,30 @@
                         <!-- 输入区域 -->
                         <div class="chat-input-container">
                             <div class="chat-input-wrapper">
-                                <input type="text" id="chatInput" placeholder="输入您的英文消息..." onkeypress="handleChatKeyPress(event)">
+                                <input type="text" id="chatInput" placeholder="输入您的英文消息或点击麦克风语音输入..." onkeypress="handleChatKeyPress(event)">
+                                <button class="voice-input-btn" id="voiceInputBtn" onclick="toggleVoiceInput()" title="语音输入">
+                                    <span class="voice-input-icon" id="voiceInputIcon">🎙️</span>
+                                </button>
                                 <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
                                     <span class="send-icon">🚀</span>
                                 </button>
+                            </div>
+                            
+                            <!-- 语音状态显示 -->
+                            <div class="voice-status-bar" id="voiceStatusBar" style="display: none;">
+                                <div class="voice-status-content">
+                                    <span class="voice-status-indicator" id="voiceStatusIndicator">🎙️</span>
+                                    <span class="voice-status-text" id="voiceStatusText">正在录音...</span>
+                                    <span class="voice-status-time" id="voiceStatusTime">00:00</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 实时语音识别结果 -->
+                            <div class="voice-realtime-result" id="voiceRealtimeResult" style="display: none;">
+                                <div class="realtime-result-content">
+                                    <span class="realtime-result-label">🎯 实时识别：</span>
+                                    <span class="realtime-result-text" id="realtimeResultText">等待语音输入...</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -675,10 +809,20 @@
                         <button class="clear-chat-btn" onclick="clearChatHistory()">🗑️ 清空对话</button>
                     </div>
                 </div>
+
+
             </div>
         </div>
     </div>
 
+    <!-- 引入腾讯云语音SDK相关文件 -->
+    <script src="js/cryptojs.js"></script>
+    <script src="vendor/tencent-speech-sdk/asr/dist/speechrecognizer.js"></script>
+    
+    <!-- 引入项目语音模块 -->
+    <script src="js/speech-config.js"></script>
+    <script src="js/speech-client.js"></script>
+    
     <!-- 引入streaming-markdown库 -->
     <script type="module">
         // 导入streaming-markdown

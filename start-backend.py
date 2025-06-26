@@ -61,8 +61,8 @@ def check_env_file():
     with open(env_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    has_tongyi = 'TONGYI_API_KEY=' in content and 'your_tongyi_api_key_here' not in content
-    has_deepseek = 'DEEPSEEK_API_KEY=' in content and 'your_deepseek_api_key_here' not in content
+    has_tongyi = 'TONGYI_API_KEY=' in content and 'your_tongyi_api_key' not in content.lower()
+    has_deepseek = 'DEEPSEEK_API_KEY=' in content and 'your_deepseek_api_key' not in content.lower()
     
     if not has_tongyi and not has_deepseek:
         print("⚠️  .env文件中未配置任何API密钥，请编辑.env文件添加您的API密钥")

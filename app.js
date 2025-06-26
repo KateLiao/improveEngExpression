@@ -775,7 +775,273 @@ function clearChatHistory() {
     app.clearChatHistory();
 }
 
+// ================ 语音功能相关 ================
+
+// 语音状态管理
+let isVoiceRecording = false;
+let voiceStartTime = null;
+let voiceTimer = null;
+let currentVoiceText = '';
+
+// 初始化语音功能
+function initVoiceFeature() {
+    console.log('🎙️ 初始化语音功能...');
+    
+    // 创建语音客户端实例
+    window.speechClient = new SpeechClient();
+    
+    // 设置语音客户端事件监听器
+    speechClient.onResult = handleVoiceResult;
+    speechClient.onError = handleVoiceError;
+    speechClient.onStart = handleVoiceStart;
+    speechClient.onStop = handleVoiceStop;
+    speechClient.onStatusChange = handleVoiceStatusChange;
+    
+    console.log('✅ 语音功能初始化完成');
+}
+
+// 切换语音输入状态
+async function toggleVoiceInput() {
+    const voiceBtn = document.getElementById('voiceInputBtn');
+    const voiceIcon = document.getElementById('voiceInputIcon');
+    
+    if (!isVoiceRecording) {
+        console.log('🎙️ 开始语音输入...');
+        
+        try {
+            // 请求麦克风权限
+            await requestMicrophonePermission();
+            
+            // 开始录音
+            await startVoiceRecording();
+            
+        } catch (error) {
+            console.error('❌ 语音输入失败:', error);
+            app.showNotification('语音输入失败: ' + error.message, 'error');
+            resetVoiceInputUI();
+        }
+    } else {
+        console.log('🛑 停止语音输入...');
+        await stopVoiceRecording();
+    }
+}
+
+// 请求麦克风权限
+async function requestMicrophonePermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // 立即停止流，我们只是为了获取权限
+        stream.getTracks().forEach(track => track.stop());
+        console.log('✅ 麦克风权限已获取');
+        return true;
+    } catch (error) {
+        console.error('❌ 麦克风权限被拒绝:', error);
+        throw new Error('需要麦克风权限才能使用语音输入功能');
+    }
+}
+
+// 开始语音录音
+async function startVoiceRecording() {
+    const voiceBtn = document.getElementById('voiceInputBtn');
+    const voiceIcon = document.getElementById('voiceInputIcon');
+    const statusBar = document.getElementById('voiceStatusBar');
+    const realtimeResult = document.getElementById('voiceRealtimeResult');
+    
+    // 更新UI状态
+    voiceBtn.classList.add('recording');
+    voiceIcon.textContent = '⏳';
+    statusBar.style.display = 'block';
+    realtimeResult.style.display = 'block';
+    
+    // 重置状态
+    currentVoiceText = '';
+    voiceStartTime = Date.now();
+    updateVoiceTimer();
+    
+    try {
+        const success = await speechClient.startRecording();
+        if (success) {
+            isVoiceRecording = true;
+            voiceIcon.textContent = '🛑';
+            updateVoiceStatusText('正在录音...');
+            
+            // 开始计时器
+            voiceTimer = setInterval(updateVoiceTimer, 1000);
+            
+            console.log('✅ 语音录音已开始');
+        } else {
+            throw new Error('语音识别服务启动失败');
+        }
+    } catch (error) {
+        resetVoiceInputUI();
+        throw error;
+    }
+}
+
+// 停止语音录音
+async function stopVoiceRecording() {
+    if (!isVoiceRecording) return;
+    
+    console.log('🛑 停止语音录音...');
+    
+    // 停止录音
+    speechClient.stopRecording();
+    
+    // 清理计时器
+    if (voiceTimer) {
+        clearInterval(voiceTimer);
+        voiceTimer = null;
+    }
+    
+    // 更新状态
+    isVoiceRecording = false;
+    updateVoiceStatusText('处理中...');
+    
+    // 如果有识别结果，自动填入输入框并发送
+    if (currentVoiceText.trim()) {
+        const chatInput = document.getElementById('chatInput');
+        chatInput.value = currentVoiceText.trim();
+        
+        // 重置语音UI
+        resetVoiceInputUI();
+        
+        // 自动发送消息
+        setTimeout(() => {
+            app.sendChatMessage();
+        }, 500);
+    } else {
+        resetVoiceInputUI();
+        app.showNotification('未识别到语音内容', 'warning');
+    }
+}
+
+// 重置语音输入UI
+function resetVoiceInputUI() {
+    const voiceBtn = document.getElementById('voiceInputBtn');
+    const voiceIcon = document.getElementById('voiceInputIcon');
+    const statusBar = document.getElementById('voiceStatusBar');
+    const realtimeResult = document.getElementById('voiceRealtimeResult');
+    
+    // 重置按钮状态
+    voiceBtn.classList.remove('recording');
+    voiceIcon.textContent = '🎙️';
+    
+    // 隐藏语音UI元素
+    statusBar.style.display = 'none';
+    realtimeResult.style.display = 'none';
+    
+    // 清理计时器
+    if (voiceTimer) {
+        clearInterval(voiceTimer);
+        voiceTimer = null;
+    }
+    
+    // 重置状态变量
+    isVoiceRecording = false;
+    currentVoiceText = '';
+}
+
+// 隐藏语音UI（简化版，避免递归）
+function hideVoiceUI() {
+    const statusBar = document.getElementById('voiceStatusBar');
+    const realtimeResult = document.getElementById('voiceRealtimeResult');
+    
+    if (statusBar) statusBar.style.display = 'none';
+    if (realtimeResult) realtimeResult.style.display = 'none';
+}
+
+// 更新语音计时器
+function updateVoiceTimer() {
+    if (!voiceStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    
+    const timeText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    const timeElement = document.getElementById('voiceStatusTime');
+    if (timeElement) {
+        timeElement.textContent = timeText;
+    }
+}
+
+// 更新语音状态文本
+function updateVoiceStatusText(text) {
+    const statusTextElement = document.getElementById('voiceStatusText');
+    if (statusTextElement) {
+        statusTextElement.textContent = text;
+    }
+}
+
+
+
+// 处理语音识别结果
+function handleVoiceResult(result) {
+    console.log('📝 收到语音识别结果:', result);
+    
+    // 更新实时结果显示
+    if (result.text) {
+        currentVoiceText = result.text;
+        const realtimeTextElement = document.getElementById('realtimeResultText');
+        if (realtimeTextElement) {
+            realtimeTextElement.textContent = result.text;
+        }
+    }
+    
+    // 如果是最终结果，准备发送
+    if (result.isFinal && result.text) {
+        console.log('✅ 最终识别结果:', result.text);
+        currentVoiceText = result.text;
+        
+        // 更新状态文本
+        updateVoiceStatusText('识别完成');
+    }
+}
+
+// 处理语音错误
+function handleVoiceError(error) {
+    console.error('❌ 语音识别错误:', error);
+    
+    // 重置UI状态
+    resetVoiceInputUI();
+    
+    app.showNotification('语音识别错误: ' + error.message, 'error');
+}
+
+// 处理录音开始
+function handleVoiceStart(event) {
+    console.log('🎙️ 录音已开始:', event);
+    updateVoiceStatusText('录音中...');
+}
+
+// 处理录音停止
+function handleVoiceStop(event) {
+    console.log('🛑 录音已停止:', event);
+    updateVoiceStatusText('处理中...');
+}
+
+// 处理状态变化
+function handleVoiceStatusChange(event) {
+    console.log('🔄 语音状态变化:', event);
+    
+    const statusMap = {
+        'connected': '已连接',
+        'recording': '录音中...',
+        'stopped': '已停止',
+        'disconnected': '连接断开',
+        'error': '发生错误',
+        'destroyed': '会话结束'
+    };
+    
+    const statusText = statusMap[event.status] || event.status;
+    updateVoiceStatusText(statusText);
+}
+
+
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 应用已启动
+    initVoiceFeature();
 }); 

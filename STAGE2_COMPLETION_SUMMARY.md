@@ -68,7 +68,7 @@
 ### HTTP API路由
 | 路径 | 方法 | 功能 | 状态 |
 |------|------|------|------|
-| `/api/speech/test` | GET | 语音配置检查 | ✅ 可用 |
+
 | `/api/speech/connect` | POST | 创建语音连接 | ✅ 可用 |
 | `/api/speech/disconnect` | POST | 断开语音连接 | ✅ 可用 |
 | `/api/speech/status` | GET | 查询连接状态 | ✅ 可用 |
@@ -83,21 +83,21 @@
 | `speech_result` | 服务器→客户端 | 识别结果推送 | ✅ 已实现 |
 | `speech_error` | 服务器→客户端 | 错误信息推送 | ✅ 已实现 |
 
-## 📋 验证测试结果
+## 📋 功能验证结果
 
-### 浏览器Console API测试
+### 浏览器Console API验证
 ```javascript
-// 测试1: 健康检查 ✅
+// 验证1: 健康检查 ✅
 fetch('/api/health').then(r => r.json())
 // 结果: {status: "healthy", message: "Flask LLM代理服务运行正常"}
 
-// 测试2: 语音配置检查 ✅  
-fetch('/api/speech/test').then(r => r.json())
-// 结果: {success: true, speech_available: true, config_status: {...}}
+// 验证2: STS临时密钥获取 ✅  
+fetch('/api/speech/sts-credentials').then(r => r.json())
+// 结果: {success: true, session_id: "...", credentials: {...}}
 
-// 测试3: 语音连接创建 ✅
-fetch('/api/speech/connect', {method: 'POST', ...})
-// 结果: {success: true, voice_id: "9d02a5e7-ffde-4be6-9f69-a762bf5f4e0b"}
+// 验证3: 音频处理服务 ✅
+fetch('/api/speech/audio/process', {method: 'POST', ...})
+// 结果: {success: true, audio_info: {...}}
 ```
 
 ### 服务器启动验证 ✅

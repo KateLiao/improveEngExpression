@@ -28,8 +28,9 @@ def static_files(filename):
 
 # 语音功能相关导入
 try:
-    from websocket_handler import setup_websocket_handler
+    from websocket_handler import sts_api_handler, create_sts_socketio_handler
     from audio_processor import audio_processor
+    from speech_service import sts_session_manager
     SPEECH_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ 语音功能模块导入失败: {e}")
@@ -198,44 +199,9 @@ def get_providers():
         }
     return jsonify(providers)
 
-# 语音功能相关路由
-@app.route('/api/speech/test', methods=['GET'])
-def test_speech_config():
-    """
-    测试语音配置
-    """
-    if not SPEECH_AVAILABLE:
-        return jsonify({
-            "success": False,
-            "error": "语音功能不可用",
-            "message": "语音模块导入失败"
-        }), 503
-    
-    # 检查腾讯云配置
-    required_configs = [
-        'TENCENT_ASR_APP_ID',
-        'TENCENT_ASR_SECRET_ID', 
-        'TENCENT_ASR_SECRET_KEY',
-        'TENCENT_ASR_REGION',
-        'TENCENT_ASR_ENGINE_TYPE'
-    ]
-    
-    config_status = {}
-    all_configured = True
-    
-    for config in required_configs:
-        value = os.getenv(config)
-        is_configured = bool(value and value != f"your_{config.lower().replace('tencent_asr_', '')}")
-        config_status[config] = is_configured
-        if not is_configured:
-            all_configured = False
-    
-    return jsonify({
-        "success": all_configured,
-        "speech_available": SPEECH_AVAILABLE,
-        "config_status": config_status,
-        "message": "语音功能配置正常" if all_configured else "语音功能配置不完整"
-    })
+# 注册STS API路由
+if SPEECH_AVAILABLE:
+    sts_api_handler.register_routes(app)
 
 @app.route('/api/speech/audio/process', methods=['POST'])
 def process_audio():
@@ -342,12 +308,14 @@ if __name__ == '__main__':
         else:
             print("  ⚠️ 语音功能配置不完整")
             
-        # 设置WebSocket支持
+        # 设置SocketIO支持
         try:
-            socketio = setup_websocket_handler(app)
-            print("  🔗 WebSocket语音代理已启用")
+            from flask_socketio import SocketIO
+            socketio = SocketIO(app, cors_allowed_origins="*")
+            sts_socketio_handler = create_sts_socketio_handler(socketio)
+            print("  🔗 STS SocketIO服务已启用")
         except Exception as e:
-            print(f"  ❌ WebSocket设置失败: {e}")
+            print(f"  ❌ SocketIO设置失败: {e}")
             
     else:
         print("  ❌ 语音功能模块不可用")
@@ -357,7 +325,7 @@ if __name__ == '__main__':
     print("📡 LLM API: http://localhost:5000/api/llm")
     
     if SPEECH_AVAILABLE:
-        print("🎤 语音API测试: http://localhost:5000/api/speech/test")
+        print("🔑 STS临时密钥: http://localhost:5000/api/speech/sts-credentials")
         print("🔊 音频处理: http://localhost:5000/api/speech/audio/process")
     
     # 启动服务器
